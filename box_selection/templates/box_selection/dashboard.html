@@ -1,0 +1,208 @@
+{% extends "box_selection/base.html" %}
+
+{% block title %}Dashboard - AI Box Selection{% endblock %}
+
+{% block content %}
+<div class="row mb-4 align-items-center">
+    <div class="col-md-8">
+        <h2 class="fw-bold mb-1">Warehouse Dispatch Dashboard</h2>
+        <p class="text-secondary mb-0">AI-powered packaging optimization, cost minimization, and box recommendation engine.</p>
+    </div>
+    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+        <a href="{% url 'box_selection:simulator' %}" class="btn btn-primary btn-lg shadow-sm">
+            <i class="bi bi-box-arrow-in-right"></i> Open Box Simulator
+        </a>
+    </div>
+</div>
+
+<!-- Key Metrics Row -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card p-3 metric-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small text-uppercase fw-semibold">Available Box Sizes</span>
+                    <h3 class="fw-bold mb-0 text-dark">{{ total_boxes_count }}</h3>
+                </div>
+                <div class="bg-primary-subtle text-primary p-3 rounded-circle">
+                    <i class="bi bi-boxes fs-4"></i>
+                </div>
+            </div>
+            <a href="{% url 'box_selection:box_list' %}" class="small text-decoration-none mt-2 d-inline-block">View Box Catalog &rarr;</a>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card p-3 metric-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small text-uppercase fw-semibold">Catalog Products</span>
+                    <h3 class="fw-bold mb-0 text-dark">{{ total_products_count }}</h3>
+                </div>
+                <div class="bg-success-subtle text-success p-3 rounded-circle">
+                    <i class="bi bi-tags-fill fs-4"></i>
+                </div>
+            </div>
+            <a href="{% url 'box_selection:product_list' %}" class="small text-decoration-none mt-2 d-inline-block">View Inventory Items &rarr;</a>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card p-3 metric-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted small text-uppercase fw-semibold">Pending Orders</span>
+                    <h3 class="fw-bold mb-0 text-dark">{{ total_orders_count }}</h3>
+                </div>
+                <div class="bg-warning-subtle text-warning p-3 rounded-circle">
+                    <i class="bi bi-cart-check-fill fs-4"></i>
+                </div>
+            </div>
+            <a href="{% url 'box_selection:order_list' %}" class="small text-decoration-none mt-2 d-inline-block">Manage Orders &rarr;</a>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Active Shipping Boxes -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold mb-0"><i class="bi bi-box me-2 text-primary"></i> Active Shipping Boxes</h5>
+                <a href="{% url 'box_selection:box_list' %}" class="btn btn-sm btn-outline-secondary">All Boxes</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Name / Code</th>
+                                <th>Dimensions (L×W×H)</th>
+                                <th>Max Wt</th>
+                                <th>Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for b in boxes %}
+                            <tr>
+                                <td>
+                                    <strong>{{ b.name }}</strong><br>
+                                    <span class="badge bg-secondary-subtle text-dark">{{ b.code }}</span>
+                                </td>
+                                <td>{{ b.dimensions_display }}<br><small class="text-muted">{{ b.volume|floatformat:0 }} cm³</small></td>
+                                <td><span class="badge bg-info-subtle text-info-emphasis">{{ b.max_weight }} kg</span></td>
+                                <td><span class="fw-bold text-success">${{ b.cost }}</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center py-3 text-muted">No boxes created yet.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Orders to Pack -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold mb-0"><i class="bi bi-cart3 me-2 text-primary"></i> Orders Awaiting Packaging</h5>
+                <a href="{% url 'box_selection:order_list' %}" class="btn btn-sm btn-outline-secondary">All Orders</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Order #</th>
+                                <th>Items</th>
+                                <th>Total Weight</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ord in recent_orders %}
+                            <tr>
+                                <td>
+                                    <strong>#{{ ord.order_number }}</strong><br>
+                                    <small class="text-muted">{{ ord.customer_name|default:"Customer" }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">{{ ord.total_items_count }} items</span>
+                                </td>
+                                <td>{{ ord.total_weight }} kg</td>
+                                <td>
+                                    <a href="{% url 'box_selection:order_detail' ord.id %}" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-magic"></i> Recommend Box
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center py-3 text-muted">No orders available. Use the simulator or admin to create sample orders.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Recommendation History -->
+{% if recent_recommendations %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-white py-3">
+                <h5 class="fw-bold mb-0"><i class="bi bi-clock-history me-2 text-primary"></i> Recent Box Recommendation Logs</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Log ID</th>
+                                <th>Order</th>
+                                <th>Recommended Box</th>
+                                <th>Total Weight</th>
+                                <th>Volume Utilization</th>
+                                <th>Box Cost</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for rec in recent_recommendations %}
+                            <tr>
+                                <td>#{{ rec.id }}</td>
+                                <td>{{ rec.order.order_number|default:"Simulator Run" }}</td>
+                                <td><strong>{{ rec.recommended_box.name|default:"No Single Box Fit" }}</strong></td>
+                                <td>{{ rec.total_weight }} kg</td>
+                                <td>
+                                    <div class="progress" style="height: 18px; width: 120px;">
+                                        <div class="progress-bar progress-bar-custom" style="width: {{ rec.utilization_rate }}%;">
+                                            {{ rec.utilization_rate }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><span class="fw-bold text-success">${{ rec.box_cost }}</span></td>
+                                <td>
+                                    {% if rec.is_feasible %}
+                                        <span class="badge bg-success">Optimal Fit</span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark">Multi-Box Needed</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

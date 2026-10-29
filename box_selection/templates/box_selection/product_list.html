@@ -1,0 +1,66 @@
+{% extends "box_selection/base.html" %}
+
+{% block title %}Product Catalog - AI Box Selection{% endblock %}
+
+{% block content %}
+<div class="row mb-4 align-items-center">
+    <div class="col-md-8">
+        <h2 class="fw-bold mb-1"><i class="bi bi-tag me-2 text-primary"></i> Product Catalog</h2>
+        <p class="text-secondary mb-0">Product dimensions, unit weights, fragility markers, and 3D rotation permissions.</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="/admin/box_selection/product/add/" target="_blank" class="btn btn-outline-primary">
+            <i class="bi bi-plus-circle"></i> Add New Product in Admin
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Product Name</th>
+                        <th>SKU</th>
+                        <th>Dimensions (L × W × H)</th>
+                        <th>Volume</th>
+                        <th>Weight</th>
+                        <th>Fragile?</th>
+                        <th>Allow Rotation?</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in products %}
+                    <tr>
+                        <td><strong>{{ p.name }}</strong></td>
+                        <td><span class="badge bg-light text-dark border">{{ p.sku }}</span></td>
+                        <td>{{ p.dimensions_display }}</td>
+                        <td>{{ p.volume|floatformat:0 }} cm³</td>
+                        <td>{{ p.weight }} kg</td>
+                        <td>
+                            {% if p.is_fragile %}
+                                <span class="badge bg-danger"><i class="bi bi-shield-exclamation"></i> Fragile</span>
+                            {% else %}
+                                <span class="badge bg-light text-muted border">No</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if p.allow_rotation %}
+                                <span class="badge bg-success-subtle text-success">Yes (6 DOF)</span>
+                            {% else %}
+                                <span class="badge bg-warning-subtle text-warning-emphasis">Upright Only</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">No products cataloged yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

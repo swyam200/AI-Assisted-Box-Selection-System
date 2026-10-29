@@ -1,0 +1,66 @@
+{% extends "box_selection/base.html" %}
+
+{% block title %}Orders - AI Box Selection{% endblock %}
+
+{% block content %}
+<div class="row mb-4 align-items-center">
+    <div class="col-md-8">
+        <h2 class="fw-bold mb-1"><i class="bi bi-cart-check me-2 text-primary"></i> Customer Orders Queue</h2>
+        <p class="text-secondary mb-0">View customer orders and instantly calculate the optimal packaging box.</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <a href="/admin/box_selection/order/add/" target="_blank" class="btn btn-outline-primary">
+            <i class="bi bi-plus-circle"></i> Create New Order in Admin
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Order #</th>
+                        <th>Customer</th>
+                        <th>Total Items</th>
+                        <th>Combined Weight</th>
+                        <th>Combined Volume</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ord in orders %}
+                    <tr>
+                        <td><strong>#{{ ord.order_number }}</strong></td>
+                        <td>{{ ord.customer_name|default:"Retail Customer" }}</td>
+                        <td><span class="badge bg-secondary-subtle text-dark">{{ ord.total_items_count }} items</span></td>
+                        <td>{{ ord.total_weight }} kg</td>
+                        <td>{{ ord.total_volume|floatformat:0 }} cm³</td>
+                        <td>
+                            {% if ord.status == 'PENDING' %}
+                                <span class="badge bg-warning text-dark">Pending Packing</span>
+                            {% elif ord.status == 'PACKED' %}
+                                <span class="badge bg-info text-dark">Packed</span>
+                            {% else %}
+                                <span class="badge bg-success">Shipped</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'box_selection:order_detail' ord.id %}" class="btn btn-sm btn-primary">
+                                <i class="bi bi-magic"></i> Box Recommendation &rarr;
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">No orders available.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

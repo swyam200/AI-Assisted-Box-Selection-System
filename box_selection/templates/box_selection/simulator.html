@@ -1,0 +1,418 @@
+{% extends "box_selection/base.html" %}
+
+{% block title %}Box Recommendation Simulator{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 class="fw-bold mb-1"><i class="bi bi-calculator me-2 text-primary"></i> 3D Box Selection Simulator</h2>
+        <p class="text-secondary">Simulate 3D geometric packing and cost optimization for customer orders or custom dimension inputs.</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Input Form Column -->
+    <div class="col-lg-5">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="fw-bold mb-0"><i class="bi bi-box-arrow-in-down text-primary me-2"></i> Input Order Items</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="simulatorForm">
+                    {% csrf_token %}
+
+                    <!-- Mode Tab: Existing Order vs Custom Items -->
+                    <ul class="nav nav-pills mb-3" id="inputTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="order-tab" data-bs-toggle="pill" data-bs-target="#order-panel" type="button" role="tab">Pick Existing Order</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="custom-tab" data-bs-toggle="pill" data-bs-target="#custom-panel" type="button" role="tab">Custom Items Entry</button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="inputTabContent">
+                        <!-- Option 1: Existing Order -->
+                        <div class="tab-pane fade show active" id="order-panel" role="tabpanel">
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Select Customer Order</label>
+                                <select name="order_id" class="form-select form-select-lg">
+                                    <option value="">-- Choose an Order --</option>
+                                    {% for ord in orders %}
+                                        <option value="{{ ord.id }}" {% if selected_order.id == ord.id %}selected{% endif %}>
+                                            Order #{{ ord.order_number }} ({{ ord.total_items_count }} items, {{ ord.total_weight }}kg) - {{ ord.customer_name|default:"Customer" }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">Loads products, quantities, dimensions, and weights directly from the order.</div>
+                            </div>
+                        </div>
+
+                        <!-- Option 2: Custom Items Input -->
+                        <div class="tab-pane fade" id="custom-panel" role="tabpanel">
+                            <div id="itemsContainer">
+                                <div class="border rounded p-3 mb-3 bg-light item-row">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="fw-bold small text-uppercase">Item #1</span>
+                                    </div>
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-8">
+                                            <input type="text" name="item_name" class="form-control form-control-sm" placeholder="Item Name (e.g. Mechanical Keyboard)" value="Mechanical Keyboard">
+                                        </div>
+                                        <div class="col-4">
+                                            <input type="number" name="item_quantity" class="form-control form-control-sm" placeholder="Qty" value="1" min="1">
+                                        </div>
+                                    </div>
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-3">
+                                            <label class="small text-muted">L (cm)</label>
+                                            <input type="number" step="0.1" name="item_length" class="form-control form-control-sm" value="35">
+                                        </div>
+                                        <div class="col-3">
+                                            <label class="small text-muted">W (cm)</label>
+                                            <input type="number" step="0.1" name="item_width" class="form-control form-control-sm" value="15">
+                                        </div>
+                                        <div class="col-3">
+                                            <label class="small text-muted">H (cm)</label>
+                                            <input type="number" step="0.1" name="item_height" class="form-control form-control-sm" value="5">
+                                        </div>
+                                        <div class="col-3">
+                                            <label class="small text-muted">Wt (kg)</label>
+                                            <input type="number" step="0.01" name="item_weight" class="form-control form-control-sm" value="1.2">
+                                        </div>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" name="item_fragile" value="0" id="fragile1">
+                                        <label class="form-check-label small" for="fragile1">Fragile</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" name="item_rotation" value="0" id="rot1" checked>
+                                        <label class="form-check-label small" for="rot1">Allow 3D Rotation</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button type="button" class="btn btn-outline-secondary btn-sm mb-3" onclick="addItemRow()">
+                                <i class="bi bi-plus-circle"></i> Add Another Item
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-cpu"></i> Calculate Optimal Box
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Quick Info Box -->
+        <div class="card p-3 bg-white">
+            <h6 class="fw-bold"><i class="bi bi-info-circle text-info me-1"></i> Selection Constraints Enforced</h6>
+            <ul class="small text-muted mb-0 ps-3">
+                <li><strong>Weight Capacity:</strong> Total payload $\le$ Box maximum weight.</li>
+                <li><strong>3D Geometry:</strong> Items are rotated in 6 orientations to verify non-overlapping coordinate fit.</li>
+                <li><strong>Cost Optimization:</strong> The system automatically selects the lowest cost valid container.</li>
+                <li><strong>Multi-box Fallback:</strong> If no single box fits, an intelligent multi-box split plan is generated.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Results Column -->
+    <div class="col-lg-7">
+        {% if result %}
+            {% if result.success %}
+                <!-- Recommended Box Card -->
+                <div class="card shadow-sm border-success mb-4">
+                    <div class="card-header bg-success text-white py-3 d-flex justify-content-between align-items-center">
+                        <span class="fs-5 fw-bold"><i class="bi bi-check-circle-fill me-2"></i> Recommended Box</span>
+                        <span class="badge bg-white text-success fs-6 fw-bold">${{ result.recommended_box.cost|floatformat:2 }}</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="row align-items-center mb-3">
+                            <div class="col-md-7">
+                                <h3 class="fw-bold text-dark mb-0">{{ result.recommended_box.name }}</h3>
+                                <p class="text-muted mb-2">Code: <span class="badge bg-secondary">{{ result.recommended_box.code }}</span></p>
+                                <p class="mb-1"><strong>Internal Dimensions:</strong> {{ result.recommended_box.dimensions.length }} × {{ result.recommended_box.dimensions.width }} × {{ result.recommended_box.dimensions.height }} cm</p>
+                                <p class="mb-0"><strong>Box Volume:</strong> {{ result.recommended_box.box_volume_cm3|floatformat:0 }} cm³ &bull; <strong>Max Capacity:</strong> {{ result.recommended_box.max_weight_kg }} kg</p>
+                            </div>
+                            <div class="col-md-5 text-md-end mt-3 mt-md-0">
+                                <div class="p-3 bg-light rounded text-center border">
+                                    <span class="small text-muted d-block">Order Weight / Capacity</span>
+                                    <h4 class="fw-bold mb-0 text-primary">{{ result.recommended_box.total_order_weight_kg }} kg</h4>
+                                    <small class="text-muted">of {{ result.recommended_box.max_weight_kg }} kg limit</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Progress Bars -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span><strong>Volume Utilization:</strong> {{ result.recommended_box.volume_utilization_pct }}%</span>
+                                <span class="text-muted">{{ result.recommended_box.total_order_volume_cm3|floatformat:0 }} cm³ / {{ result.recommended_box.box_volume_cm3|floatformat:0 }} cm³</span>
+                            </div>
+                            <div class="progress" style="height: 12px;">
+                                <div class="progress-bar progress-bar-custom" style="width: {{ result.recommended_box.volume_utilization_pct }}%;"></div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span><strong>Weight Utilization:</strong> {{ result.recommended_box.weight_utilization_pct }}%</span>
+                                <span class="text-muted">{{ result.recommended_box.total_order_weight_kg }} kg / {{ result.recommended_box.max_weight_kg }} kg</span>
+                            </div>
+                            <div class="progress" style="height: 12px;">
+                                <div class="progress-bar bg-info" style="width: {{ result.recommended_box.weight_utilization_pct }}%;"></div>
+                            </div>
+                        </div>
+
+                        <!-- AI Guidance Banner -->
+                        {% if result.ai_notes %}
+                        <div class="ai-banner p-3 mb-3">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <i class="bi bi-robot text-primary fs-5"></i>
+                                <h6 class="fw-bold mb-0 text-primary">AI Warehouse Packing Instructions</h6>
+                            </div>
+                            <p class="small mb-2">{{ result.ai_notes.summary }}</p>
+                            
+                            <div class="row g-2 small">
+                                <div class="col-sm-6">
+                                    <strong>Cushioning Level:</strong> {{ result.ai_notes.cushioning_level }}
+                                </div>
+                                <div class="col-sm-6">
+                                    <strong>Closure Method:</strong> {{ result.ai_notes.tape_and_closure }}
+                                </div>
+                            </div>
+
+                            {% if result.ai_notes.handling_precautions %}
+                                <div class="mt-2 pt-2 border-top border-info-subtle">
+                                    <strong class="small text-danger d-block mb-1">Handling Precautions:</strong>
+                                    <ul class="small mb-0 ps-3">
+                                        {% for precaution in result.ai_notes.handling_precautions %}
+                                            <li class="text-danger-emphasis">{{ precaution }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            {% endif %}
+
+                            {% if result.ai_notes.stacking_instructions %}
+                                <div class="mt-2 pt-2 border-top border-info-subtle">
+                                    <strong class="small text-dark d-block mb-1">Stacking Order:</strong>
+                                    <ul class="small mb-0 ps-3">
+                                        {% for st in result.ai_notes.stacking_instructions %}
+                                            <li>{{ st }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <!-- 3D Coordinate Placement Table -->
+                        {% if result.recommended_box.coordinates %}
+                        <div class="accordion mb-3" id="coordAccordion">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#coordCollapse">
+                                        <i class="bi bi-layers me-2 text-primary"></i> View 3D Placement Coordinates ({{ result.recommended_box.coordinates|length }} items)
+                                    </button>
+                                </h2>
+                                <div id="coordCollapse" class="accordion-collapse collapse" data-bs-parent="#coordAccordion">
+                                    <div class="accordion-body p-0">
+                                        <table class="table table-sm table-striped mb-0 small">
+                                            <thead>
+                                                <tr>
+                                                    <th>Item</th>
+                                                    <th>Origin (X, Y, Z)</th>
+                                                    <th>Oriented Size (L×W×H)</th>
+                                                    <th>Weight</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for c in result.recommended_box.coordinates %}
+                                                <tr>
+                                                    <td><strong>{{ c.name }}</strong></td>
+                                                    <td>({{ c.x|floatformat:1 }}, {{ c.y|floatformat:1 }}, {{ c.z|floatformat:1 }}) cm</td>
+                                                    <td>{{ c.length|floatformat:1 }} × {{ c.width|floatformat:1 }} × {{ c.height|floatformat:1 }} cm</td>
+                                                    <td>{{ c.weight }} kg</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Alternative Options -->
+                        {% if result.alternatives %}
+                        <h6 class="fw-bold mt-4 mb-2"><i class="bi bi-shuffle me-1"></i> Valid Alternative Containers</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle small mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Box Name</th>
+                                        <th>Cost</th>
+                                        <th>Cost Delta</th>
+                                        <th>Volume Fill</th>
+                                        <th>Weight Fill</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for alt in result.alternatives %}
+                                    <tr>
+                                        <td>{{ alt.name }} ({{ alt.code }})</td>
+                                        <td><strong>${{ alt.cost|floatformat:2 }}</strong></td>
+                                        <td><span class="text-muted">+${{ alt.cost_diff|floatformat:2 }}</span></td>
+                                        <td>{{ alt.volume_utilization_pct }}%</td>
+                                        <td>{{ alt.weight_utilization_pct }}%</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+            {% else %}
+                <!-- No Single Fit: Multi-box Schedule Card -->
+                <div class="card shadow-sm border-warning mb-4">
+                    <div class="card-header bg-warning text-dark py-3 d-flex justify-content-between align-items-center">
+                        <span class="fs-5 fw-bold"><i class="bi bi-exclamation-triangle-fill me-2"></i> Multi-Box Shipment Required</span>
+                        <span class="badge bg-dark text-white fs-6">Est: ${{ result.multi_box_recommendation.estimated_total_cost|floatformat:2 }}</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-danger fw-semibold">{{ result.message }}</p>
+                        
+                        {% if result.multi_box_recommendation %}
+                        <div class="alert alert-secondary py-2">
+                            <strong>Consolidated Plan:</strong> Ship using <strong>{{ result.multi_box_recommendation.total_boxes_needed }} boxes</strong>. Total container cost: <strong>${{ result.multi_box_recommendation.estimated_total_cost|floatformat:2 }}</strong>.
+                        </div>
+
+                        <div class="row g-3">
+                            {% for b_assigned in result.multi_box_recommendation.box_breakdown %}
+                            <div class="col-md-6">
+                                <div class="card h-100 p-3 border">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="fw-bold mb-0 text-primary">Box #{{ forloop.counter }}: {{ b_assigned.box_name }}</h6>
+                                        <span class="badge bg-success">${{ b_assigned.cost|floatformat:2 }}</span>
+                                    </div>
+                                    <ul class="small text-muted mb-2 ps-3">
+                                        {% for itm in b_assigned.items %}
+                                            <li>{{ itm.name }} ({{ itm.weight }} kg)</li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% if b_assigned.warning %}
+                                        <div class="alert alert-danger py-1 small mb-0">{{ b_assigned.warning }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+
+            <!-- Disqualified / Rejected Boxes Audit -->
+            {% if result.rejected_boxes %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white py-3">
+                    <h6 class="fw-bold mb-0 text-secondary"><i class="bi bi-x-circle text-danger me-2"></i> Disqualification Audit (Rejected Boxes)</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle small mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Box Name</th>
+                                    <th>Cost</th>
+                                    <th>Disqualification Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for rej in result.rejected_boxes %}
+                                <tr>
+                                    <td><strong>{{ rej.name }}</strong> ({{ rej.code }})</td>
+                                    <td>${{ rej.cost|floatformat:2 }}</td>
+                                    <td><span class="text-danger">{{ rej.reason }}</span></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+        {% else %}
+            <!-- Initial State Prompt -->
+            <div class="card shadow-sm p-5 text-center bg-white">
+                <div class="mb-3">
+                    <i class="bi bi-box-seam text-secondary" style="font-size: 3.5rem;"></i>
+                </div>
+                <h4 class="fw-bold text-dark">No Simulation Run Yet</h4>
+                <p class="text-muted mx-auto" style="max-width: 450px;">
+                    Select an order from the left pane or enter custom dimensions to evaluate geometric fit, weight capacity, and optimal cost.
+                </p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let itemCount = 1;
+    function addItemRow() {
+        itemCount++;
+        const container = document.getElementById('itemsContainer');
+        const row = document.createElement('div');
+        row.className = 'border rounded p-3 mb-3 bg-light item-row';
+        row.innerHTML = `
+            <div class="d-flex justify-content-between mb-2">
+                <span class="fw-bold small text-uppercase">Item #${itemCount}</span>
+                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="this.closest('.item-row').remove()">&times;</button>
+            </div>
+            <div class="row g-2 mb-2">
+                <div class="col-8">
+                    <input type="text" name="item_name" class="form-control form-control-sm" placeholder="Item Name" value="Product ${itemCount}">
+                </div>
+                <div class="col-4">
+                    <input type="number" name="item_quantity" class="form-control form-control-sm" placeholder="Qty" value="1" min="1">
+                </div>
+            </div>
+            <div class="row g-2 mb-2">
+                <div class="col-3">
+                    <label class="small text-muted">L (cm)</label>
+                    <input type="number" step="0.1" name="item_length" class="form-control form-control-sm" value="20">
+                </div>
+                <div class="col-3">
+                    <label class="small text-muted">W (cm)</label>
+                    <input type="number" step="0.1" name="item_width" class="form-control form-control-sm" value="15">
+                </div>
+                <div class="col-3">
+                    <label class="small text-muted">H (cm)</label>
+                    <input type="number" step="0.1" name="item_height" class="form-control form-control-sm" value="10">
+                </div>
+                <div class="col-3">
+                    <label class="small text-muted">Wt (kg)</label>
+                    <input type="number" step="0.01" name="item_weight" class="form-control form-control-sm" value="0.8">
+                </div>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="item_fragile" value="${itemCount-1}" id="fragile${itemCount}">
+                <label class="form-check-label small" for="fragile${itemCount}">Fragile</label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="item_rotation" value="${itemCount-1}" id="rot${itemCount}" checked>
+                <label class="form-check-label small" for="rot${itemCount}">Allow 3D Rotation</label>
+            </div>
+        `;
+        container.appendChild(row);
+    }
+</script>
+{% endblock %}

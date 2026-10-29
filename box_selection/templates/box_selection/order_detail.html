@@ -1,0 +1,252 @@
+{% extends "box_selection/base.html" %}
+
+{% block title %}Order #{{ order.order_number }} - AI Box Recommendation{% endblock %}
+
+{% block content %}
+<div class="row mb-4 align-items-center">
+    <div class="col-md-8">
+        <div class="d-flex align-items-center gap-2 mb-1">
+            <a href="{% url 'box_selection:order_list' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i></a>
+            <h2 class="fw-bold mb-0">Order #{{ order.order_number }}</h2>
+            <span class="badge bg-primary text-uppercase">{{ order.get_status_display }}</span>
+        </div>
+        <p class="text-secondary mb-0">Customer: <strong>{{ order.customer_name|default:"Standard Customer" }}</strong> &bull; Created: {{ order.created_at|date:"M d, Y H:i" }}</p>
+    </div>
+    <div class="col-md-4 text-md-end">
+        <button class="btn btn-outline-dark" onclick="window.print()">
+            <i class="bi bi-printer"></i> Print Warehouse Slip
+        </button>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Order Items Summary -->
+    <div class="col-lg-5">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="fw-bold mb-0"><i class="bi bi-cart3 me-2 text-primary"></i> Order Line Items</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Product</th>
+                                <th>Dimensions (L×W×H)</th>
+                                <th>Qty</th>
+                                <th>Weight</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in order.items.all %}
+                            <tr>
+                                <td>
+                                    <strong>{{ item.product.name }}</strong><br>
+                                    <small class="text-muted">{{ item.product.sku }}</small>
+                                    {% if item.product.is_fragile %}
+                                        <span class="badge bg-danger-subtle text-danger ms-1">Fragile</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ item.product.dimensions_display }}</td>
+                                <td><span class="badge bg-secondary">{{ item.quantity }}x</span></td>
+                                <td>{{ item.subtotal_weight }} kg</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light fw-bold">
+                            <tr>
+                                <td>Total Payload</td>
+                                <td>{{ order.total_volume|floatformat:0 }} cm³</td>
+                                <td>{{ order.total_items_count }} items</td>
+                                <td>{{ order.total_weight }} kg</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Recommendation Result -->
+    <div class="col-lg-7">
+        {% if recommendation.success %}
+            <div class="card shadow-sm border-success mb-4">
+                <div class="card-header bg-success text-white py-3 d-flex justify-content-between align-items-center">
+                    <span class="fs-5 fw-bold"><i class="bi bi-check-circle-fill me-2"></i> Recommended Shipping Container</span>
+                    <span class="badge bg-white text-success fs-6 fw-bold">${{ recommendation.recommended_box.cost|floatformat:2 }}</span>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-center mb-3">
+                        <div class="col-md-7">
+                            <h3 class="fw-bold text-dark mb-1">{{ recommendation.recommended_box.name }}</h3>
+                            <span class="badge bg-secondary mb-2">{{ recommendation.recommended_box.code }}</span>
+                            <p class="mb-1"><strong>Internal Dimensions:</strong> {{ recommendation.recommended_box.dimensions.length }} × {{ recommendation.recommended_box.dimensions.width }} × {{ recommendation.recommended_box.dimensions.height }} cm</p>
+                            <p class="mb-0"><strong>Container Volume:</strong> {{ recommendation.recommended_box.box_volume_cm3|floatformat:0 }} cm³ &bull; <strong>Max Payload:</strong> {{ recommendation.recommended_box.max_weight_kg }} kg</p>
+                        </div>
+                        <div class="col-md-5 text-md-end mt-3 mt-md-0">
+                            <div class="p-3 bg-light rounded text-center border">
+                                <span class="small text-muted d-block">Order Weight / Limit</span>
+                                <h4 class="fw-bold mb-0 text-primary">{{ recommendation.recommended_box.total_order_weight_kg }} kg</h4>
+                                <small class="text-muted">Capacity: {{ recommendation.recommended_box.max_weight_kg }} kg</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Meters -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span><strong>Volume Fill Rate:</strong> {{ recommendation.recommended_box.volume_utilization_pct }}%</span>
+                            <span class="text-muted">{{ recommendation.recommended_box.total_order_volume_cm3|floatformat:0 }} cm³ / {{ recommendation.recommended_box.box_volume_cm3|floatformat:0 }} cm³</span>
+                        </div>
+                        <div class="progress" style="height: 12px;">
+                            <div class="progress-bar progress-bar-custom" style="width: {{ recommendation.recommended_box.volume_utilization_pct }}%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span><strong>Weight Capacity Used:</strong> {{ recommendation.recommended_box.weight_utilization_pct }}%</span>
+                            <span class="text-muted">{{ recommendation.recommended_box.total_order_weight_kg }} kg / {{ recommendation.recommended_box.max_weight_kg }} kg</span>
+                        </div>
+                        <div class="progress" style="height: 12px;">
+                            <div class="progress-bar bg-info" style="width: {{ recommendation.recommended_box.weight_utilization_pct }}%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- AI Guidance Box -->
+                    {% if recommendation.ai_notes %}
+                    <div class="ai-banner p-3 mb-3">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="bi bi-robot text-primary fs-5"></i>
+                            <h6 class="fw-bold mb-0 text-primary">Warehouse Dispatch Packaging Guidance</h6>
+                        </div>
+                        <p class="small mb-2">{{ recommendation.ai_notes.summary }}</p>
+                        
+                        <div class="row g-2 small mb-2">
+                            <div class="col-sm-6">
+                                <strong>Cushioning Method:</strong> {{ recommendation.ai_notes.cushioning_level }}
+                            </div>
+                            <div class="col-sm-6">
+                                <strong>Taping Standard:</strong> {{ recommendation.ai_notes.tape_and_closure }}
+                            </div>
+                        </div>
+
+                        {% if recommendation.ai_notes.handling_precautions %}
+                            <div class="mt-2 pt-2 border-top border-info-subtle">
+                                <strong class="small text-danger d-block mb-1">Precautions:</strong>
+                                <ul class="small mb-0 ps-3">
+                                    {% for p in recommendation.ai_notes.handling_precautions %}
+                                        <li class="text-danger-emphasis">{{ p }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
+
+                        {% if recommendation.ai_notes.stacking_instructions %}
+                            <div class="mt-2 pt-2 border-top border-info-subtle">
+                                <strong class="small text-dark d-block mb-1">Packing Order:</strong>
+                                <ul class="small mb-0 ps-3">
+                                    {% for st in recommendation.ai_notes.stacking_instructions %}
+                                        <li>{{ st }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Alternatives -->
+                    {% if recommendation.alternatives %}
+                    <h6 class="fw-bold mt-4 mb-2"><i class="bi bi-shuffle me-1"></i> Alternative Available Sizes</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle small mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Box Name</th>
+                                    <th>Cost</th>
+                                    <th>Cost Delta</th>
+                                    <th>Volume Fill</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for alt in recommendation.alternatives %}
+                                <tr>
+                                    <td>{{ alt.name }} ({{ alt.code }})</td>
+                                    <td><strong>${{ alt.cost|floatformat:2 }}</strong></td>
+                                    <td><span class="text-muted">+${{ alt.cost_diff|floatformat:2 }}</span></td>
+                                    <td>{{ alt.volume_utilization_pct }}%</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% else %}
+            <!-- Multi-box Plan -->
+            <div class="card shadow-sm border-warning mb-4">
+                <div class="card-header bg-warning text-dark py-3">
+                    <h5 class="fw-bold mb-0"><i class="bi bi-exclamation-triangle-fill me-2"></i> Multi-Box Shipment Required</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-danger fw-semibold">{{ recommendation.message }}</p>
+                    {% if recommendation.multi_box_recommendation %}
+                        <div class="alert alert-secondary py-2">
+                            Ship using <strong>{{ recommendation.multi_box_recommendation.total_boxes_needed }} boxes</strong>. Total container cost: <strong>${{ recommendation.multi_box_recommendation.estimated_total_cost|floatformat:2 }}</strong>.
+                        </div>
+                        <div class="row g-3">
+                            {% for b_assigned in recommendation.multi_box_recommendation.box_breakdown %}
+                            <div class="col-md-6">
+                                <div class="card h-100 p-3 border">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="fw-bold mb-0 text-primary">{{ b_assigned.box_name }}</h6>
+                                        <span class="badge bg-success">${{ b_assigned.cost|floatformat:2 }}</span>
+                                    </div>
+                                    <ul class="small text-muted mb-0 ps-3">
+                                        {% for itm in b_assigned.items %}
+                                            <li>{{ itm.name }} ({{ itm.weight }} kg)</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Disqualification Audit -->
+        {% if recommendation.rejected_boxes %}
+        <div class="card shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h6 class="fw-bold mb-0 text-secondary"><i class="bi bi-x-circle text-danger me-2"></i> Disqualification Reasons (Rejected Boxes)</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle small mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Box Name</th>
+                                <th>Cost</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for rej in recommendation.rejected_boxes %}
+                            <tr>
+                                <td><strong>{{ rej.name }}</strong> ({{ rej.code }})</td>
+                                <td>${{ rej.cost|floatformat:2 }}</td>
+                                <td><span class="text-danger">{{ rej.reason }}</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
