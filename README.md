@@ -142,8 +142,8 @@ box_selection_system/
 ### 2. Setup Virtual Environment & Install Dependencies
 ```bash
 # Clone the repository
-git clone <your-repo-link>
-cd <repo-folder>
+git clone https://github.com/swyam200/AI-Assisted-Box-Selection-System.git
+cd AI-Assisted-Box-Selection-System
 
 # Create and activate a virtual environment
 python -m venv .venv
